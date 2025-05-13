@@ -1,3 +1,4 @@
+
 import java.awt.*;
 import java.awt.event.*;
 import java.awt.print.*;
@@ -15,11 +16,11 @@ import java.sql.Time;
 import java.time.LocalTime;
 import java.util.List;
 
-
 class Attendance {
     private static LocalTime entryStart;
     private static LocalTime exitEnd;
     private static final JCheckBox checkBox = new JCheckBox();
+
     public static String getCurrentDateAndTime() {
         LocalDateTime currentDateTime = LocalDateTime.now();
         DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("d.MM.yyyy");
@@ -29,275 +30,157 @@ class Attendance {
 
     public static void DayTable() {
         String currentDay = LocalDateTime.now().getDayOfWeek().toString();
-        Connection connection = DataBaseHelper.getConnection();
-        if (connection == null) {
-            JOptionPane.showMessageDialog(null, "Veritabanına bağlanılamadı.");
-            return;
-        }
 
-        String query = getQueryForDay(currentDay);
-        System.out.println("Bugun " + currentDay);
-
-        System.out.println("Çalıştırılan Sorgu: " + query);
-        try (Statement stmt = connection.createStatement(); ResultSet rs = stmt.executeQuery(query)) {
-            String[] columnNames = {"Sıra No", "Kat", "Ad Soyad", "Salon", "Giriş Saati", "Çıkış Saati", "Durum", "Notlar"};
-            DefaultTableModel model = new DefaultTableModel(columnNames, 0) {
-                @Override
-                public Class<?> getColumnClass(int columnIndex) {
-                    return (columnIndex == 6) ? Boolean.class : String.class;
-                }
-            };
-
-            while (rs.next()) {
-
-                Object[] row = getRowDataForDay(rs, currentDay);
-                model.addRow(row);
-                System.out.println("Tabloya eklendi: " + Arrays.toString(row));
+        try (Connection connection = DataBaseHelper.getConnection()) {
+            if (connection == null) {
+                JOptionPane.showMessageDialog(null, "Veritabanına bağlanılamadı.");
+                return;
             }
 
-            JTable table = new JTable(model);
-            for (int i = 0; i < model.getRowCount(); i++) {
-                int studentId = (int) model.getValueAt(i, 0); // Öğrencinin ID'si veya sıra numarası
-                boolean isChecked = getCheckboxValueForStudent(studentId);
-                model.setValueAt(isChecked, i, 6);
-            }
+            String query = getQueryForDay(currentDay);
+            System.out.println("Bugun " + currentDay);
+            System.out.println("Çalıştırılan Sorgu: " + query);
 
+            try (PreparedStatement pstmt = connection.prepareStatement(query);
+                 ResultSet rs = pstmt.executeQuery()) {
 
-            table.getColumnModel().getColumn(6).setCellRenderer(new TableCellRenderer() {
-                @Override
-                public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
-                    // Varsayılan component'i al
-                    Component cellComponent = table.getDefaultRenderer(value != null ? value.getClass() : String.class)
-                            .getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
-
-                    // Eğer value null ise, uygun bir değer ata
-                    if (value == null) {
-                        value = Boolean.FALSE; // Null değer için varsayılan olarak işaretli değil (false) bir değer kullan
+                String[] columnNames = {"Sıra No", "Kat", "Ad Soyad", "Salon", "Giriş Saati", "Çıkış Saati", "Durum", "Notlar"};
+                DefaultTableModel model = new DefaultTableModel(columnNames, 0) {
+                    @Override
+                    public Class<?> getColumnClass(int columnIndex) {
+                        return (columnIndex == 6) ? Boolean.class : String.class;
                     }
+                };
 
-                    Boolean isChecked = (Boolean) value;
-
-                    // Öğrencinin giriş ve çıkış saatlerini al (4. ve 5. indexte)
-                    String entryStartString = (String) table.getValueAt(row, 4); // Giriş saati (4. index)
-                    String exitEndString = (String) table.getValueAt(row, 5);   // Çıkış saati (5. index)
-
-                    LocalTime entryStart = null;
-                    LocalTime exitEnd = null;
-
-                    // Giriş saati geçerli değilse varsayılan bir değer atama
-                    if (entryStartString != null && !entryStartString.equals("-")) {
-                        try {
-                            entryStart = LocalTime.parse(entryStartString);
-                        } catch (DateTimeParseException e) {
-                            // Hata durumunda işlemi atla veya uygun bir işlem yap
-                            entryStart = LocalTime.MIN;  // Varsayılan değer: en erken saat (00:00)
-                        }
-                    }
-
-                    // Çıkış saati geçerli değilse varsayılan bir değer atama
-                    if (exitEndString != null && !exitEndString.equals("-")) {
-                        try {
-                            exitEnd = LocalTime.parse(exitEndString);
-                        } catch (DateTimeParseException e) {
-                            // Hata durumunda işlemi atla veya uygun bir işlem yap
-                            exitEnd = LocalTime.MAX;  // Varsayılan değer: en geç saat (23:59)
-                        }
-                    }
-
-                    // Eğer giriş saati ve çıkış saati geçerli ise işlemi yap
-                    if (Boolean.TRUE.equals(isChecked)) {
-                        cellComponent.setBackground(Color.green);
-                    } else {
-                        // Adım 2: Eğer checkbox işaretli değilse, giriş ve çıkış saatlerine göre renk belirle
-                        if (entryStart != null && exitEnd != null) {
-                            if (entryStart.isBefore(LocalTime.now()) && exitEnd.isAfter(LocalTime.now())) {
-                                // Öğrenci giriş yapmış ve çıkış yapmamışsa, siyah
-                                cellComponent.setBackground(Color.red);
-                            } else if (entryStart.isAfter(LocalTime.now()) || exitEnd.isBefore(LocalTime.now())) {
-                                // Giriş saati gelmemiş veya çıkış saati geçmişse, kırmızı
-                                cellComponent.setBackground(Color.yellow);
-                            }
-                        } else {
-                            // Saatler geçerli değilse (null veya geçersiz format), varsayılan renk
-                            cellComponent.setBackground(Color.cyan);
-                        }
-                    }
-
-                    return cellComponent;
+                while (rs.next()) {
+                    Object[] row = getRowDataForDay(rs, currentDay, rs);
+                    model.addRow(row);
+                    System.out.println("Tabloya eklendi: " + Arrays.toString(row));
                 }
-            });
 
+                JTable table = new JTable(model);
+                setupTableAppearance(table, model);
+                addCheckboxListener(table, model);
+                setupTableSorting(model, table);
 
+                JFrame frame = new JFrame("Yoklama Tablosu - " + currentDay);
+                frame.setSize(900, 500);
+                frame.setLocationRelativeTo(null);
+                frame.setLayout(new BorderLayout());
 
-            setupTableSorting(model, table);
-            System.out.println("Frame oluşturuluyor...");
+                table.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
+                JScrollPane scrollPane = new JScrollPane(table);
+                scrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
 
-            JFrame frame = new JFrame("Yoklama Tablosu - " + currentDay);
-            frame.setSize(900, 500);
-            frame.setLocationRelativeTo(null);
-            frame.setLayout(new BorderLayout());
-            addCheckboxListener(table, model);
+                TableColumn adSoyadColumn = table.getColumnModel().getColumn(2);
+                adSoyadColumn.setPreferredWidth(200);
 
+                TableColumn notlarColumn = table.getColumnModel().getColumn(7);
+                notlarColumn.setPreferredWidth(1350);
 
-            table.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
-            JScrollPane scrollPane = new JScrollPane(table);
-            scrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
+                frame.add(scrollPane, BorderLayout.CENTER);
+                frame.add(createBottomPanel(table), BorderLayout.SOUTH);
+                frame.setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
+                frame.addWindowListener(new WindowAdapter() {
+                    @Override
+                    public void windowClosing(WindowEvent e) {
+                        int choice = JOptionPane.showConfirmDialog(null, "Pencereyi kapatmak istiyor musunuz?", "Kapatma Onayı", JOptionPane.YES_NO_OPTION);
+                        if (choice == JOptionPane.NO_OPTION) return;
 
-            TableColumn adSoyadColumn = table.getColumnModel().getColumn(2);
-            adSoyadColumn.setPreferredWidth(200);
+                        String[] options = {"Tabloyu Düzenle", "Yoklamaya Devam Et"};
+                        int actionChoice = JOptionPane.showOptionDialog(null, "Lütfen yapmak istediğiniz seçeneği seçiniz", "Giriş Başarılı", JOptionPane.DEFAULT_OPTION, JOptionPane.INFORMATION_MESSAGE, null, options, options[0]);
 
-            TableColumn notlarColumn = table.getColumnModel().getColumn(7);
-            notlarColumn.setPreferredWidth(1350);
-
-
-            frame.add(new JScrollPane(table), BorderLayout.CENTER);
-            frame.add(createBottomPanel(table), BorderLayout.SOUTH);
-
-
-            // frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-
-            frame.setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE); // Kapatma işlevini devre dışı bırak
-
-            frame.addWindowListener(new WindowAdapter() {
-                @Override
-                public void windowClosing(WindowEvent e) {
-                    // Kullanıcı pencereyi kapatmaya çalıştığında, işlem onayı göster
-                    int choice = JOptionPane.showConfirmDialog(
-                            null,
-                            "Pencereyi kapatmak istiyor musunuz?",
-                            "Kapatma Onayı",
-                            JOptionPane.YES_NO_OPTION);
-
-                    if (choice == JOptionPane.NO_OPTION) {
-                        return; // Kullanıcı pencereyi kapatmak istemezse işlem sonlanır
-                    }
-
-                    // Eğer kullanıcı "Evet" derse, iki seçenekli başka bir dialog gösterelim
-                    String[] options = {"Tabloyu Düzenle", "Yoklamaya Devam Et"};
-                    int actionChoice = JOptionPane.showOptionDialog(
-                            null,
-                            "Lütfen yapmak istediğiniz seçeneği seçiniz",
-                            "Giriş Başarılı",
-                            JOptionPane.DEFAULT_OPTION,
-                            JOptionPane.INFORMATION_MESSAGE,
-                            null,
-                            options,
-                            options[0]);
-
-                    if (actionChoice == 0) {  // "Tabloyu Düzenle" seçeneği
-                        try (Connection connection = DataBaseHelper.getConnection()) {
-                            if (connection != null) {
-                                Tables table = new Tables(connection);
-                                table.execute();
+                        if (actionChoice == 0) {
+                            try (Connection connection = DataBaseHelper.getConnection()) {
+                                if (connection != null) {
+                                    Tables table = new Tables(connection);
+                                    table.execute();
+                                }
+                            } catch (SQLException ex) {
+                                ex.printStackTrace();
                             }
-                        } catch (SQLException ex) {
-                            ex.printStackTrace(); // veya uygun bir hata yönetimi
+                        } else if (actionChoice == 1) {
+                            DayTable();
                         }
-                    } else if (actionChoice == 1) {  // "Yoklamaya Devam Et" seçeneği
-                        Attendance.DayTable();
+
+                        frame.dispose();
                     }
-
-                    // Pencereyi kapatma işlemi burada yapılır
-                    frame.dispose();
-                }
-            });
-
+                });
 
                 frame.setVisible(true);
                 System.out.println("Frame gösterildi!");
 
-        } catch (SQLException e) {
-            JOptionPane.showMessageDialog(null, "Veri çekme hatası: " + e.getMessage());
-        }
-    }
-
-    private static boolean getCheckboxValueForStudent(int studentId) {
-        boolean isChecked = false; // Varsayılan olarak false (checkbox işaretli değil)
-
-        // Veritabanı bağlantısını al
-        try (Connection connection = DataBaseHelper.getConnection()) {
-            if (connection == null) {
-                System.out.println("Veritabanına bağlanılamadı.");
-                return false;
-            }
-
-            // SQL sorgusu ile checkbox_state değerini al
-            String sql = "SELECT checkbox_state FROM ogrencitakip WHERE sirano = ?";
-
-            try (PreparedStatement stmt = connection.prepareStatement(sql)) {
-                // Sorguya öğrenci ID'sini ekle
-                stmt.setInt(1, studentId);
-
-                // Sorguyu çalıştır ve sonucu al
-                try (ResultSet rs = stmt.executeQuery()) {
-                    if (rs.next()) {
-                        // Eğer sonuç varsa, checkbox_state değerini al ve boolean'a çevir
-                        int checkboxState = rs.getInt("checkbox_state"); // 0 veya 1 gelir
-                        isChecked = (checkboxState == 1); // 1 ise true, 0 ise false
-                    }
-                }
             } catch (SQLException e) {
-                System.out.println("SQL Hatası: " + e.getMessage());
-                e.printStackTrace();
+                JOptionPane.showMessageDialog(null, "Veri çekme hatası: " + e.getMessage());
             }
         } catch (SQLException e) {
-            System.out.println("Veritabanına bağlanırken hata oluştu: " + e.getMessage());
             e.printStackTrace();
+            JOptionPane.showMessageDialog(null, "Veritabanı bağlantı hatası: " + e.getMessage());
         }
-
-        return isChecked;
     }
 
-    private static Map<Integer, Boolean> getAllCheckboxStates() {
-        Map<Integer, Boolean> checkboxMap = new HashMap<>();
+    private static void setupTableAppearance(JTable table, DefaultTableModel model) {
+        table.getColumnModel().getColumn(6).setCellRenderer(new TableCellRenderer() {
+            @Override
+            public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
+                Component cellComponent = table.getDefaultRenderer(Boolean.class) // Boolean sınıfı için default renderer'ı al
+                        .getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
 
-        String sql = "SELECT sirano, checkbox_state FROM ogrencitakip";
+                boolean isChecked = false;
+                if (value instanceof Boolean) {
+                    isChecked = (Boolean) value;
+                }
 
-        try (Connection connection = DataBaseHelper.getConnection();
-             PreparedStatement stmt = connection.prepareStatement(sql);
-             ResultSet rs = stmt.executeQuery()) {
+                String entryStartString = (String) table.getValueAt(row, 4);
+                String exitEndString = (String) table.getValueAt(row, 5);
 
-            while (rs.next()) {
-                int studentId = rs.getInt("sirano");
-                boolean isChecked = rs.getInt("checkbox_state") == 1;
-                checkboxMap.put(studentId, isChecked);
+                LocalTime entryStart = parseLocalTime(entryStartString, LocalTime.MIN);
+                LocalTime exitEnd = parseLocalTime(exitEndString, LocalTime.MAX);
+
+                cellComponent.setBackground(getColorForCell(isChecked, entryStart, exitEnd));
+                return cellComponent;
             }
-
-            System.out.println("Checkbox_state değerleri başarıyla yüklendi.");
-
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-
-        return checkboxMap;
+        });
     }
 
+    private static LocalTime parseLocalTime(String timeString, LocalTime defaultValue) {
+        if (timeString != null && !timeString.equals("-")) {
+            try {
+                return LocalTime.parse(timeString);
+            } catch (DateTimeParseException e) {
+                return defaultValue;
+            }
+        }
+        return defaultValue;
+    }
 
+    private static Color getColorForCell(boolean isChecked, LocalTime entryStart, LocalTime exitEnd) {
+        LocalTime defaultEntry = LocalTime.parse("00:00");
+        LocalTime endOfDayThreshold = LocalTime.parse("23:59").plusSeconds(59).plusNanos(999999999);
+        LocalTime now = LocalTime.now();
 
-    private static void updateCheckboxValue(int studentId, boolean isChecked) {
-        String sql = "UPDATE ogrencitakip SET checkbox_state = ? WHERE sirano = ?";
+        System.out.println("isChecked: " + isChecked + ", entryStart: " + entryStart + ", exitEnd: " + exitEnd + ", now: " + now);
+        System.out.println("defaultEntry.equals(entryStart): " + defaultEntry.equals(entryStart));
+        System.out.println("defaultExit.equals(exitEnd): " + endOfDayThreshold.equals(exitEnd));
 
-        try (Connection connection = DataBaseHelper.getConnection();
-             PreparedStatement stmt = connection.prepareStatement(sql)) {
-
-            stmt.setInt(1, isChecked ? 1 : 0);
-            stmt.setInt(2, studentId);
-
-            int affectedRows = stmt.executeUpdate();
-            if (affectedRows > 0) {
-                System.out.println("Checkbox değeri güncellendi: Öğrenci ID " + studentId);
+        if (isChecked) {
+            return Color.green;
+        } else {
+            if (entryStart != null && exitEnd != null) {
+                if (entryStart.equals(defaultEntry) && (exitEnd.isAfter(endOfDayThreshold.minusSeconds(1)) || exitEnd.equals(endOfDayThreshold))) {
+                    return Color.cyan;
+                } else if (entryStart.isBefore(LocalTime.now()) && exitEnd.isAfter(LocalTime.now())) {
+                    return Color.red;
+                } else if (entryStart.isAfter(LocalTime.now()) || exitEnd.isBefore(LocalTime.now())) {
+                    return Color.yellow;
+                } else {
+                    return Color.lightGray;
+                }
             } else {
-                System.out.println("Güncelleme başarısız. Öğrenci ID bulunamadı.");
+                return Color.cyan;
             }
-
-        } catch (SQLException e) {
-            e.printStackTrace();
         }
     }
-
-
-
-
 
     private static String getQueryForDay(String day) {
         Map<String, String[]> dayMapping = Map.of(
@@ -309,142 +192,157 @@ class Attendance {
                 "SATURDAY", new String[]{"cumartesigirissabah", "cumartesigirisoglen", "cumartesigirisaksam", "cumartesicikissabah", "cumartesicikisoglen", "cumartesicikisaksam"}
         );
 
-        String[] columns = dayMapping.getOrDefault(day, new String[] {});
+        String[] columns = dayMapping.getOrDefault(day, new String[]{});
         if (columns.length == 0) {
             JOptionPane.showMessageDialog(null, "Hata: Günlük zaman sütunları tanımlanmamış!");
-            return "SELECT sirano, kat, adsoyad, salon FROM ogrencitakip";
+            return "SELECT sirano, kat, adsoyad, salon, checkbox_state FROM ogrencitakip";
         }
-
 
         LocalTime now = LocalTime.now();
         String entryColumn, exitColumn;
 
         if (now.isAfter(LocalTime.of(8, 0)) && now.isBefore(LocalTime.of(12, 30))) {
-            entryColumn = columns[0]; // Sabah giriş
-            exitColumn = columns[3];  // Sabah çıkış
+            entryColumn = columns[0];
+            exitColumn = columns[3];
         } else if (now.isAfter(LocalTime.of(12, 30)) && now.isBefore(LocalTime.of(18, 20))) {
-            entryColumn = columns[1]; // Öğlen giriş
-            exitColumn = columns[4];  // Öğlen çıkış
+            entryColumn = columns[1];
+            exitColumn = columns[4];
         } else {
-            entryColumn = columns[2]; // Akşam giriş
-            exitColumn = columns[5];  // Akşam çıkış
+            entryColumn = columns[2];
+            exitColumn = columns[5];
         }
 
-        return String.format("SELECT sirano, kat, adsoyad, salon, %s, %s, %s, %s FROM ogrencitakip",
-                entryColumn, exitColumn, entryColumn, exitColumn);
-
+        // checkbox_state'i sorguya dahil ediyoruz
+        return String.format("SELECT sirano, kat, adsoyad, salon, %s, %s, checkbox_state FROM ogrencitakip", entryColumn, exitColumn);
     }
 
-    private static Object[] getRowDataForDay(ResultSet rs, String day) throws SQLException {
-        Object[] row = new Object[8]; // Yeni sütun sayısına uygun dizi
+    private static Object[] getRowDataForDay(ResultSet rs, String day, ResultSet fullRs) throws SQLException {
+        Object[] row = new Object[8];
 
         row[0] = rs.getInt("sirano");
         row[1] = rs.getString("kat");
         row[2] = rs.getString("adsoyad");
         row[3] = rs.getString("salon");
 
-        System.out.println("salon: " + row[3]);
-
-        int colIndex = 5; // Giriş-çıkış saatleri sütunlarının başlangıç indeksi
+        int colIndex = 5;
 
         // LocalTime değişkenlerini önceden tanımla
         LocalTime entryStart = null;
         LocalTime exitEnd = null;
 
-        if (rs.getMetaData().getColumnCount() >= colIndex + 3) {
+        if (rs.getMetaData().getColumnCount() >= colIndex + 2) { // checkbox_state 때문에 2로 변경
             String entryStartStr = formatTime(rs, colIndex);
-            String exitEndStr = formatTime(rs, colIndex + 3);
+            String exitEndStr = formatTime(rs, colIndex + 1);
 
-            // Eğer "-" değilse LocalTime'a çevir
-            if (!entryStartStr.equals("-")) {
-                entryStart = LocalTime.parse(entryStartStr);
-            }
-            if (!exitEndStr.equals("-")) {
-                exitEnd = LocalTime.parse(exitEndStr);
-            }
+            entryStart = parseLocalTime(entryStartStr, null);
+            exitEnd = parseLocalTime(exitEndStr, null);
 
-            row[4] = entryStartStr.equals("-") ? "-" : entryStartStr; // Giriş saati
-            row[5] = exitEndStr.equals("-") ? "-" : exitEndStr; // Çıkış saati
+            row[4] = entryStartStr.equals("-") ? "-" : entryStartStr;
+            row[5] = exitEndStr.equals("-") ? "-" : exitEndStr;
         } else {
             row[4] = "Belirtilmemiş";
             row[5] = "Belirtilmemiş";
         }
-        
-        row[7] = "";    // Notlar sütunu
+
+        row[6] = rs.getBoolean("checkbox_state"); // Checkbox durumunu doğrudan al
+        row[7] = "";
 
         return row;
     }
-
-
 
     private static String formatTime(ResultSet rs, int columnIndex) throws SQLException {
         Time time = rs.getTime(columnIndex);
         return (time != null) ? time.toLocalTime().format(DateTimeFormatter.ofPattern("HH:mm")) : "-";
     }
 
-
-
-
-
     private static void setupTableListener(JTable table, DefaultTableModel model) {
         model.addTableModelListener(e -> {
-            if (e.getColumn() == 6) { // Checkbox değiştiğinde çalıştır
+            if (e.getColumn() == 6) {
                 int row = e.getFirstRow();
                 Boolean checked = (Boolean) model.getValueAt(row, 6);
                 String name = (String) model.getValueAt(row, 2);
 
                 if (checked && name.contains("!!!")) {
-                    name = name.replace("!!!", "").trim();  // "!!!" işaretini kaldır
-                    model.setValueAt(name, row, 2);  // Ad Soyad hücresini güncelle
+                    model.setValueAt(name.replace("!!!", "").trim(), row, 2);
                 }
             }
         });
     }
-
 
     private static void setupTableSorting(DefaultTableModel model, JTable table) {
         TableRowSorter<DefaultTableModel> sorter = new TableRowSorter<>(model);
         table.setRowSorter(sorter);
 
-        // Sıralama işlemi yapılacak her sütun için uygun sıralama fonksiyonu
-        sorter.setComparator(0, Comparator.comparingInt(o -> Integer.parseInt(o.toString()))); // Sıra No (sayısal)
-        sorter.setComparator(1, Comparator.comparingInt(o -> Integer.parseInt(o.toString()))); // Kat (sayısal)
-        sorter.setComparator(3, (o1, o2) -> { // Salon (sayısal)
+        sorter.setComparator(0, Comparator.comparingInt(o -> Integer.parseInt(o.toString())));
+        sorter.setComparator(1, Comparator.comparingInt(o -> Integer.parseInt(o.toString())));
+        sorter.setComparator(3, (o1, o2) -> {
             try {
-                // Salon verisi sayısal olabilir
-                int salon1 = Integer.parseInt(o1.toString());
-                int salon2 = Integer.parseInt(o2.toString());
-                return Integer.compare(salon1, salon2);
+                return Integer.compare(Integer.parseInt(o1.toString()), Integer.parseInt(o2.toString()));
             } catch (NumberFormatException e) {
-                // Eğer sayısal bir değer değilse (metin), alfabetik sıralama yapılır
                 return o1.toString().compareTo(o2.toString());
             }
         });
-        // Diğer sütunlar (Ad Soyad vs.) String olarak sıralanabilir.
+
         Collator collator = Collator.getInstance(new Locale("tr", "TR"));
-        collator.setStrength(Collator.PRIMARY); // Büyük/küçük harf ve aksan duyarlılığını kaldır
+        collator.setStrength(Collator.PRIMARY);
         sorter.setComparator(2, (o1, o2) -> collator.compare(o1.toString(), o2.toString()));
     }
-    // Bu method checkbox'lar için ItemListener ekler
+
+    private static Timer debounceTimer;
+    private static int debouncedStudentId;
+    private static boolean debouncedIsChecked;
+
     private static void addCheckboxListener(JTable table, DefaultTableModel model) {
         table.getColumnModel().getColumn(6).setCellEditor(new DefaultCellEditor(new JCheckBox()));
         table.getModel().addTableModelListener(e -> {
-            if (e.getType() == TableModelEvent.UPDATE) {
+            if (e.getType() == TableModelEvent.UPDATE && e.getColumn() == 6) {
                 int row = e.getFirstRow();
-                int column = e.getColumn();
-
-                // 6. sütun checkbox sütunuydu
-                if (column == 6) {
-                    int studentId = (int) model.getValueAt(row, 0); // Öğrencinin ID'sini alıyoruz
-                    boolean isChecked = (boolean) model.getValueAt(row, column); // Checkbox durumunu alıyoruz
-                    // Değişikliği veritabanına kaydediyoruz
-                    updateCheckboxValue(studentId, isChecked);
-                }
+                int studentId = (int) model.getValueAt(row, 0);
+                boolean isChecked = (boolean) model.getValueAt(row, 6);
+                updateCheckboxValueAsync(studentId, isChecked);
             }
         });
     }
-    static DefaultTableModel tableModel = new DefaultTableModel(new Object[]{"User ID", "Checkbox"}, 0);
-    JTable table = new JTable(tableModel);
+
+    private static void updateCheckboxValueAsync(int studentId, boolean isChecked) {
+        SwingWorker<Void, Void> worker = new SwingWorker<>() {
+            @Override
+            protected Void doInBackground() throws Exception {
+                updateCheckboxValue(studentId, isChecked); // Veritabanı güncelleme işlemi
+                return null;
+            }
+
+            @Override
+            protected void done() {
+                // İsteğe bağlı: İşlem tamamlandığında UI'da geri bildirim gösterebilirsiniz
+            }
+        };
+        worker.execute();
+    }
+
+    private static void updateCheckboxValue(int studentId, boolean isChecked) {
+        String sql = "UPDATE ogrencitakip SET checkbox_state = ? WHERE sirano = ?";
+        Connection connection = null;
+        PreparedStatement pstmt = null;
+        try {
+            connection = DataBaseHelper.getConnection();
+            pstmt = connection.prepareStatement(sql);
+            pstmt.setInt(1, isChecked ? 1 : 0);
+            pstmt.setInt(2, studentId);
+            pstmt.executeUpdate();
+            System.out.println("Güncellendi: " + studentId + " -> " + isChecked);
+        } catch (SQLException e) {
+            e.printStackTrace();
+            JOptionPane.showMessageDialog(null, "Checkbox güncelleme hatası: " + e.getMessage());
+        } finally {
+            DataBaseHelper.closeConnection(connection);
+            try {
+                if (pstmt != null) pstmt.close();
+            } catch (SQLException e) {
+                e.printStackTrace();
+            }
+        }
+    }
 
     private static JPanel createBottomPanel(JTable table) {
         JPanel bottomPanel = new JPanel(new BorderLayout());
@@ -457,22 +355,20 @@ class Attendance {
         printButton.addActionListener(e -> printTable(table));
         buttonPanel.add(printButton);
 
+        JLabel searchLabel = new JLabel("Ara:");
+        buttonPanel.add(searchLabel);
+
         JTextField searchField = new JTextField(15);
-
-
         buttonPanel.add(searchField);
+
         JButton clearButton = new JButton("Yoklamayı Sıfırla");
         buttonPanel.add(clearButton);
-        clearButton.addActionListener(e -> resetAllCheckboxesInDatabase(table,tableModel));
-
-
+        clearButton.addActionListener(e -> resetAllCheckboxesInDatabase(table));
 
         searchField.addKeyListener(new KeyAdapter() {
             public void keyReleased(KeyEvent e) {
-                // Kullanıcı metni her değiştirdiğinde arama fonksiyonunu çağır
                 searchTable(searchField.getText(), table);
             }
-
 
             @Override
             public void keyPressed(KeyEvent e) {
@@ -481,13 +377,10 @@ class Attendance {
                 }
             }
         });
-       
-
 
         JLabel timeLabel = new JLabel();
         timeLabel.setFont(new Font("Tahoma", Font.PLAIN, 12));
         timeLabel.setHorizontalAlignment(SwingConstants.RIGHT);
-
 
         Timer timer = new Timer(1000, e -> SwingUtilities.invokeLater(() -> timeLabel.setText(getCurrentDateAndTime())));
         timer.start();
@@ -502,28 +395,36 @@ class Attendance {
         return bottomPanel;
     }
 
-    private static void resetAllCheckboxesInDatabase(JTable table, DefaultTableModel tableModel) {
+    private static void resetAllCheckboxesInDatabase(JTable table) {
         try (Connection connection = DataBaseHelper.getConnection()) {
-
             if (connection == null) {
                 System.out.println("Veritabanına bağlanılamadı.");
                 return;
             }
-
             System.out.println("Veritabanına başarıyla bağlanıldı.");
-
-            // Tüm checkbox_state değerlerini 0 olarak güncelle
             String sql = "UPDATE ogrencitakip SET checkbox_state = 0";
-
-            try (PreparedStatement stmt = connection.prepareStatement(sql)) {
-                int affectedRows = stmt.executeUpdate();
+            try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
+                int affectedRows = pstmt.executeUpdate();
                 System.out.println("Yoklama sıfırlandı: " + affectedRows + " satır güncellendi.");
+            }
 
+            // 🚀 Bu satırı ekliyoruz: tablonun modelini güncelle
+            DefaultTableModel model = (DefaultTableModel) table.getModel();
+            model.setRowCount(0); // önce tabloyu temizle
 
+            // Şimdi yeni verilerle doldur:
+            String currentDay = LocalDateTime.now().getDayOfWeek().toString();
+            String query = getQueryForDay(currentDay);
+            try (PreparedStatement pstmt = connection.prepareStatement(query);
+                 ResultSet rs = pstmt.executeQuery()) {
+
+                while (rs.next()) {
+                    Object[] row = getRowDataForDay(rs, currentDay, rs);
+                    model.addRow(row);
+                }
 
             } catch (SQLException e) {
-                System.out.println("SQL Hatası: " + e.getMessage());
-                e.printStackTrace();
+                JOptionPane.showMessageDialog(null, "Veri yenileme hatası: " + e.getMessage());
             }
 
         } catch (SQLException e) {
@@ -532,20 +433,17 @@ class Attendance {
         }
     }
 
+
     private static void searchTable(String query, JTable table) {
         TableRowSorter<TableModel> sorter = new TableRowSorter<>(table.getModel());
         table.setRowSorter(sorter);
-
         if (query.trim().isEmpty()) {
-            sorter.setRowFilter(null); // Eğer arama sorgusu boşsa, tüm satırları göster
+            sorter.setRowFilter(null);
         } else {
-            RowFilter<TableModel, Object> rf = RowFilter.regexFilter("(?i)" + query); // Arama sorgusuna göre filtrele
-            sorter.setRowFilter(rf); // Filtreyi uygula
+            RowFilter<TableModel, Object> rf = RowFilter.regexFilter("(?i)" + query);
+            sorter.setRowFilter(rf);
         }
     }
-
-
-
 
     private static void printTable(JTable table) {
         // Kullanıcıya seçenek sun
@@ -651,7 +549,4 @@ class Attendance {
             JOptionPane.showMessageDialog(null, "Yazdırma hatası: " + ex.getMessage());
         }
     }
-
-
-
-}
+    }
