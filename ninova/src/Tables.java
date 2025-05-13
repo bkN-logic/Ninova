@@ -186,7 +186,7 @@ public class Tables {
 
             addStudentButton.addActionListener(e -> AddStudentPanel.createAndShowGUI());
             deleteStudentButton.addActionListener(e ->{
-                    DeleteStudentPanel deleteStudentPanel = new DeleteStudentPanel();
+                DeleteStudentPanel deleteStudentPanel = new DeleteStudentPanel();
                 JFrame deleteStudentFrame = new JFrame("Öğrenci Silme Paneli");
                 deleteStudentFrame.setSize(600, 400);
                 deleteStudentFrame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
@@ -194,7 +194,7 @@ public class Tables {
                 deleteStudentFrame.add(deleteStudentPanel);
                 deleteStudentFrame.setVisible(true);
 
-        });
+            });
             saveButton.addActionListener(e -> updateAllChanges());
 
             menuBar.add(addStudentButton);
@@ -235,41 +235,36 @@ public class Tables {
             return;
         }
 
-        for (Map.Entry<Integer, Map<String, Object>> entry : changedData.entrySet()) {
-            int studentId = entry.getKey();
-            Map<String, Object> updates = entry.getValue();
+        try (Connection conn = DataBaseHelper.getConnection()) { // Bağlantıyı buradan alın
+            for (Map.Entry<Integer, Map<String, Object>> entry : changedData.entrySet()) {
+                int studentId = entry.getKey();
+                Map<String, Object> updates = entry.getValue();
 
-            for (Map.Entry<String, Object> updateEntry : updates.entrySet()) {
-                String columnName = updateEntry.getKey();
-                Object newValue = updateEntry.getValue();
-                updateDatabase(columnName, newValue, studentId);
+                for (Map.Entry<String, Object> updateEntry : updates.entrySet()) {
+                    String columnName = updateEntry.getKey();
+                    Object newValue = updateEntry.getValue();
+                    updateDatabase(conn, columnName, newValue, studentId); // Bağlantıyı fonksiyona geçirin
+                }
             }
-        }
 
-        // Güncelleme tamamlandı, değişiklikleri temizle
-        changedData.clear();
-        System.out.println("Tüm değişiklikler başarıyla kaydedildi.");
+            // Güncelleme tamamlandı, değişiklikleri temizle
+            changedData.clear();
+            System.out.println("Tüm değişiklikler başarıyla kaydedildi.");
+            reloadTable(conn); // Bağlantıyı reloadTable'a geçirin
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
     }
 
-    private void updateDatabase(String columnName, Object newValue, Object sirano) {
+    private void updateDatabase(Connection conn, String columnName, Object newValue, Object sirano) {
         if (columnName == null || columnName.isEmpty()) {
             System.out.println("Geçersiz sütun adı!");
             return;
         }
 
-        try {
-            if (connection == null || connection.isClosed()) {
-                System.out.println("Bağlantı kapalı! Yeniden bağlanıyor...");
-                connection = DriverManager.getConnection(DataBaseHelper.getUrl(), DataBaseHelper.getUsername(), DataBaseHelper.getPassword());
-            }
-        } catch (SQLException e) {
-            System.out.println("Bağlantı yeniden kurulurken hata oluştu: " + e.getMessage());
-            return;
-        }
-
         String updateQuery = "UPDATE ogrencitakip SET " + columnName + " = ? WHERE sirano = ?";
 
-        try (PreparedStatement preparedStatement = connection.prepareStatement(updateQuery)) {
+        try (PreparedStatement preparedStatement = conn.prepareStatement(updateQuery)) {
             // 🟢 Eğer giriş/çıkış saati ise TIME olarak kaydet
             if (columnName.contains("giris") || columnName.contains("cikis")) {
                 try {
@@ -321,7 +316,7 @@ public class Tables {
             int updatedRows = preparedStatement.executeUpdate();
             if (updatedRows > 0) {
                 System.out.println("Veritabanı güncellendi: " + columnName + " = " + newValue);
-                reloadTable();
+
             } else {
                 System.out.println("Güncelleme başarısız.");
             }
@@ -332,10 +327,10 @@ public class Tables {
         }
     }
 
-    public void reloadTable() {
+    public void reloadTable(Connection conn) {
         String query = "SELECT * FROM ogrencitakip ORDER BY sirano ASC"; // 📌 **Sıralamayı PK'ye göre yap**
 
-        try (Statement statement = connection.createStatement();
+        try (Statement statement = conn.createStatement();
              ResultSet resultSet = statement.executeQuery(query)) {
 
             tableModel.setRowCount(0); // **Tabloyu temizle**
