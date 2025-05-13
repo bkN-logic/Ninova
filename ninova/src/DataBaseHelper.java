@@ -1,35 +1,37 @@
-import java.sql.*;
+
+import com.zaxxer.hikari.HikariConfig;
+import com.zaxxer.hikari.HikariDataSource;
+
+import java.sql.Connection;
+import java.sql.SQLException;
 
 public class DataBaseHelper {
-    private static Connection connection = null;
-    private static final String URL = "*****";
-    private static final String USERNAME = "****";
-    private static final String PASSWORD = "***";
 
-    public static String getUrl() {
-        return URL;
+    private static HikariDataSource dataSource;
+
+    static {
+        HikariConfig config = new HikariConfig();
+        config.setJdbcUrl("******");
+        config.setUsername("******");
+        config.setPassword("*****2");
+        config.setMaximumPoolSize(10);
+        config.setConnectionTimeout(30000);
+        config.setIdleTimeout(600000);
+        config.setMaxLifetime(3600000);
+        dataSource = new HikariDataSource(config);
     }
 
-    // USERNAME ve PASSWORD için getter metodları da eklenebilir
-    public static String getUsername() {
-        return USERNAME;
+    public static Connection getConnection() throws SQLException {
+        return dataSource.getConnection();
     }
 
-    public static String getPassword() {
-        return PASSWORD;
-    }
-
-    public static Connection getConnection() {
-        try {
-            if (connection == null || connection.isClosed()) {
-                Class.forName("org.postgresql.Driver");
-                connection = DriverManager.getConnection(URL, USERNAME, PASSWORD);
+    public static void closeConnection(Connection connection) {
+        if (connection != null) {
+            try {
+                connection.close();
+            } catch (SQLException e) {
+                e.printStackTrace();
             }
-            return connection;
-        } catch (SQLException | ClassNotFoundException e) {
-            e.printStackTrace();
-            return null;
         }
     }
-
 }
