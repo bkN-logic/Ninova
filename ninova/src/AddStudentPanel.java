@@ -1,7 +1,7 @@
+
 import javax.swing.*;
 import java.awt.*;
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.sql.Time;
@@ -9,18 +9,18 @@ import java.sql.Time;
 public class AddStudentPanel {
 
     public static void createAndShowGUI() {
-        JFrame frame = new JFrame("Ogrenci Ekle");
+        JFrame frame = new JFrame("Öğrenci Ekle");
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         frame.setSize(600, 600);
         frame.setLayout(new GridLayout(0, 2));
 
-        String[] labels = {"Kat", "Ad Soyad", "Salon", "Pazartesi Giris Sabah", "Pazartesi Cikis Sabah",
-                "Pazartesi Giris Oglen", "Pazartesi Cikis Oglen", "Pazartesi Giris Aksam", "Pazartesi Cikis Aksam",
-                "Sali Giris Sabah", "Sali Cikis Sabah", "Sali Giris Oglen", "Sali Cikis Oglen", "Sali Giris Aksam", "Sali Cikis Aksam",
-                "Carsamba Giris Sabah", "Carsamba Cikis Sabah", "Carsamba Giris Oglen", "Carsamba Cikis Oglen", "Carsamba Giris Aksam", "Carsamba Cikis Aksam",
-                "Persembe Giris Sabah", "Persembe Cikis Sabah", "Persembe Giris Oglen", "Persembe Cikis Oglen", "Persembe Giris Aksam", "Persembe Cikis Aksam",
-                "Cuma Giris Sabah", "Cuma Cikis Sabah", "Cuma Giris Oglen", "Cuma Cikis Oglen", "Cuma Giris Aksam", "Cuma Cikis Aksam",
-                "Cumartesi Giris Sabah", "Cumartesi Cikis Sabah", "Cumartesi Giris Oglen", "Cumartesi Cikis Oglen", "Cumartesi Giris Aksam", "Cumartesi Cikis Aksam"};
+        String[] labels = {"Kat", "Ad Soyad", "Salon", "Pazartesi Giriş Sabah", "Pazartesi Çıkış Sabah",
+                "Pazartesi Giriş Öğlen", "Pazartesi Çıkış Öğlen", "Pazartesi Giriş Akşam", "Pazartesi Çıkış Akşam",
+                "Salı Giriş Sabah", "Salı Çıkış Sabah", "Salı Giriş Öğlen", "Salı Çıkış Öğlen", "Salı Giriş Akşam", "Salı Çıkış Akşam",
+                "Çarşamba Giriş Sabah", "Çarşamba Çıkış Sabah", "Çarşamba Giriş Öğlen", "Çarşamba Çıkış Öğlen", "Çarşamba Giriş Akşam", "Çarşamba Çıkış Akşam",
+                "Perşembe Giriş Sabah", "Perşembe Çıkış Sabah", "Perşembe Giriş Öğlen", "Perşembe Çıkış Öğlen", "Perşembe Giriş Akşam", "Perşembe Çıkış Akşam",
+                "Cuma Giriş Sabah", "Cuma Çıkış Sabah", "Cuma Giriş Öğlen", "Cuma Çıkış Öğlen", "Cuma Giriş Akşam", "Cuma Çıkış Akşam",
+                "Cumartesi Giriş Sabah", "Cumartesi Çıkış Sabah", "Cumartesi Giriş Öğlen", "Cumartesi Çıkış Öğlen", "Cumartesi Giriş Akşam", "Cumartesi Çıkış Akşam"};
 
         JTextField[] textFields = new JTextField[labels.length];
         for (int i = 0; i < labels.length; i++) {
@@ -31,7 +31,7 @@ public class AddStudentPanel {
 
         JButton saveButton = new JButton("Kaydet");
         saveButton.addActionListener(e -> {
-            try (Connection conn = DriverManager.getConnection(DataBaseHelper.getUrl(), DataBaseHelper.getUsername(), DataBaseHelper.getPassword())) {
+            try (Connection conn = DataBaseHelper.getConnection()) { // Veritabanı bağlantısını DataBaseHelper'dan al
                 String sql = "INSERT INTO ogrencitakip (kat, adsoyad, salon, pazartesigirissabah, pazartesicikissabah, pazartesigirisoglen, pazartesicikisoglen, pazartesigirisaksam, pazartesicikisaksam, " +
                         "saligirissabah, salicikissabah, saligirisoglen, salicikisoglen, saligirisaksam, salicikisaksam, " +
                         "carsambagirissabah, carsambacikissabah, carsambagirisoglen, carsambacikisoglen, carsambagirisaksam, carsambacikisaksam, " +
@@ -80,10 +80,14 @@ public class AddStudentPanel {
                     JOptionPane.showMessageDialog(null, "Veri Girisi Basarili!", "Basarili!", JOptionPane.INFORMATION_MESSAGE);
                 } catch (SQLException ex) {
                     ex.printStackTrace();
-                    JOptionPane.showMessageDialog(null, "Veri girisi sirasinda bir hata olustu!", "Error!", JOptionPane.ERROR_MESSAGE);
+                    JOptionPane.showMessageDialog(null, "Veri girisi sirasinda bir hata olustu! " + ex.getMessage(), "Hata!", JOptionPane.ERROR_MESSAGE);
                 }
             } catch (SQLException ex) {
-                throw new RuntimeException(ex);
+                ex.printStackTrace(); // Ek olarak hatayı konsola yazdır
+                JOptionPane.showMessageDialog(null, "Veritabanı bağlantısı kurulamadı! " + ex.getMessage(), "Hata!", JOptionPane.ERROR_MESSAGE);
+                // Uygulamanın devam etmesi uygun değilse, burada sonlandırılabilir:
+                // System.exit(1);
+                throw new RuntimeException(ex); // Daha üst katmana fırlat
             }
         });
 
