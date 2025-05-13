@@ -1,3 +1,4 @@
+
 import javax.swing.*;
 import javax.swing.table.*;
 import java.awt.*;
@@ -70,11 +71,7 @@ public class DeleteStudentPanel extends JPanel {
 
     private void loadStudentsData() {
         tableModel.setRowCount(0); // Mevcut verileri temizle
-
-        try (Connection conn = DriverManager.getConnection(
-                DataBaseHelper.getUrl(),
-                DataBaseHelper.getUsername(),
-                DataBaseHelper.getPassword());
+        try (Connection conn = DataBaseHelper.getConnection(); // Veritabanı bağlantısını DataBaseHelper'dan al
              Statement stmt = conn.createStatement();
              ResultSet rs = stmt.executeQuery("SELECT sirano, adsoyad FROM ogrencitakip")) {
 
@@ -86,7 +83,7 @@ public class DeleteStudentPanel extends JPanel {
 
         } catch (SQLException ex) {
             ex.printStackTrace();
-            JOptionPane.showMessageDialog(this, "Veritabanı hatası!", "Hata", JOptionPane.ERROR_MESSAGE);
+            JOptionPane.showMessageDialog(this, "Veritabanı hatası: " + ex.getMessage(), "Hata", JOptionPane.ERROR_MESSAGE);
         }
     }
 
@@ -107,11 +104,7 @@ public class DeleteStudentPanel extends JPanel {
 
         int confirm = JOptionPane.showConfirmDialog(this, "Seçili öğrencileri silmek istediğinizden emin misiniz?", "Onay", JOptionPane.YES_NO_OPTION);
         if (confirm == JOptionPane.YES_OPTION) {
-            try (Connection conn = DriverManager.getConnection(
-                    DataBaseHelper.getUrl(),
-                    DataBaseHelper.getUsername(),
-                    DataBaseHelper.getPassword())) {
-
+            try (Connection conn = DataBaseHelper.getConnection()) { // Veritabanı bağlantısını DataBaseHelper'dan al
                 PreparedStatement stmt = conn.prepareStatement("DELETE FROM ogrencitakip WHERE sirano = ?");
                 for (int sirano : selectedStudents) {
                     stmt.setInt(1, sirano);
@@ -121,7 +114,7 @@ public class DeleteStudentPanel extends JPanel {
                 loadStudentsData(); // Tabloyu güncelle
             } catch (SQLException ex) {
                 ex.printStackTrace();
-                JOptionPane.showMessageDialog(this, "Veritabanı hatası!", "Hata", JOptionPane.ERROR_MESSAGE);
+                JOptionPane.showMessageDialog(this, "Veritabanı hatası: " + ex.getMessage(), "Hata", JOptionPane.ERROR_MESSAGE);
             }
         }
     }
